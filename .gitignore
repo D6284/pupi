@@ -1,0 +1,4 @@
+pups/node_modules/
+node_modules/
+*.log
+.pups-git-backup/

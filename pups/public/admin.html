@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plush Pups | Admin & Live Concierge Portal</title>
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Socket.io client -->
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    .chat-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body
+  class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-amber-500 selection:text-white">
+
+  <!-- LOGIN CONTAINER -->
+  <div id="login-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 px-4">
+    <div
+      class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+      <div class="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl"></div>
+      <div class="text-center mb-8">
+        <div
+          class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/10 text-amber-400 mb-4 text-2xl border border-amber-500/20">
+          🐾
+        </div>
+        <h2 class="text-2xl font-bold text-white tracking-tight">Plush Pups Admin</h2>
+        <p class="text-slate-400 text-sm mt-1">Enter your secure access code to manage concierge & inventory</p>
+      </div>
+
+      <form id="login-form" onsubmit="handleLogin(event)" class="space-y-5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Security Access
+            Code</label>
+          <div class="relative">
+            <input type="password" id="access-code-input" required placeholder="••••••••"
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-center text-lg tracking-widest transition" />
+          </div>
+          <p id="login-error" class="text-rose-400 text-xs mt-2 hidden text-center font-medium"></p>
+        </div>
+        <button type="submit" id="login-btn"
+          class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold py-3 px-4 rounded-xl transition duration-200 shadow-lg shadow-amber-500/20 flex items-center justify-center space-x-2">
+          <span>Authenticate & Access</span>
+          <i class="fa-solid fa-arrow-right text-sm"></i>
+        </button>
+      </form>
+      <div class="mt-6 text-center text-xs text-slate-500">
+        Default setup code: <code
+          class="text-amber-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">admin123</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN ADMIN DASHBOARD (Hidden until logged in) -->
+  <div id="dashboard" class="hidden flex-1 flex flex-col md:flex-row min-h-screen overflow-hidden">
+
+    <!-- SIDEBAR NAV -->
+    <aside class="w-full md:w-64 bg-slate-950 border-r border-slate-800/80 flex flex-col shrink-0">
+      <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <span class="text-2xl">🐾</span>
+          <div>
+            <h1 class="font-bold text-white text-base leading-tight">Plush Pups</h1>
+            <span class="text-xs text-amber-400 font-medium flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Concierge OS
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="flex-1 p-3 space-y-1 overflow-y-auto text-sm">
+        <button onclick="switchTab('chats')" id="nav-chats"
+          class="tab-btn active-tab w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition text-slate-300 hover:text-white hover:bg-slate-900 font-medium">
+          <div class="flex items-center space-x-3">
+            <i class="fa-solid fa-comments text-amber-400 w-5"></i>
+            <span>Live Concierge</span>
+          </div>
+          <span id="unread-chats-badge"
+            class="hidden bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+        </button>
+
+        <button onclick="switchTab('puppies')" id="nav-puppies"
+          class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-900 font-medium">
+          <i class="fa-solid fa-dog text-amber-400 w-5"></i>
+          <span>Puppy Inventory</span>
+        </button>
+
+        <button onclick="switchTab('orders')" id="nav-orders"
+          class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-900 font-medium">
+          <i class="fa-solid fa-shopping-bag text-amber-400 w-5"></i>
+          <span>Orders & Deposits</span>
+        </button>
+
+        <button onclick="switchTab('customers')" id="nav-customers"
+          class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-900 font-medium">
+          <i class="fa-solid fa-users text-amber-400 w-5"></i>
+          <span>Customer Leads</span>
+        </button>
+
+        <button onclick="switchTab('payments')" id="nav-payments"
+          class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-900 font-medium">
+          <i class="fa-solid fa-credit-card text-amber-400 w-5"></i>
+          <span>Payments Log</span>
+        </button>
+
+        <div class="pt-4 pb-1 text-[10px] font-bold text-slate-500 uppercase px-3 tracking-wider">System & AI</div>
+
+        <button onclick="switchTab('ai')" id="nav-ai"
+          class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-900 font-medium">
+          <i class="fa-solid fa-robot text-amber-400 w-5"></i>
+          <span>AI Knowledge & FAQs</span>
+        </button>
+
+        <button onclick="switchTab('business')" id="nav-business"
+          class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-900 font-medium">
+          <i class="fa-solid fa-building text-amber-400 w-5"></i>
+          <span>Business Info & Shipping</span>
+        </button>
+
+        <button onclick="switchTab('whatsapp')" id="nav-whatsapp"
+          class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-900 font-medium">
+          <i class="fa-brands fa-whatsapp text-emerald-400 w-5"></i>
+          <span>WhatsApp Integration</span>
+        </button>
+
+        <button onclick="switchTab('widget')" id="nav-widget"
+          class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-900 font-medium">
+          <i class="fa-solid fa-sliders text-amber-400 w-5"></i>
+          <span>Widget Customizer</span>
+        </button>
+
+        <button onclick="switchTab('settings')" id="nav-settings"
+          class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-900 font-medium">
+          <i class="fa-solid fa-shield-halved text-amber-400 w-5"></i>
+          <span>Security & Settings</span>
+        </button>
+      </nav>
+
+      <div class="p-4 border-t border-slate-800 bg-slate-950/50 flex items-center justify-between">
+        <div class="text-xs">
+          <p class="font-medium text-slate-300">Admin Logged In</p>
+          <p class="text-slate-500 text-[10px]" id="session-timer-text">Timeout: 30m</p>
+        </div>
+        <button onclick="handleLogout()" title="Logout"
+          class="p-2 rounded-lg bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition">
+          <i class="fa-solid fa-power-off text-sm"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN VIEW AREA -->
+    <main class="flex-1 flex flex-col bg-slate-900 overflow-y-auto min-w-0">
+
+      <!-- TAB 1: LIVE CHATS -->
+      <section id="tab-chats" class="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
+        <!-- Chat Sessions List -->
+        <div class="w-full md:w-80 bg-slate-950 border-r border-slate-800 flex flex-col shrink-0 h-full">
+          <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+            <h2 class="font-bold text-white text-base">Active Chats</h2>
+            <button onclick="fetchChats()" class="text-slate-400 hover:text-white p-1 text-sm transition"
+              title="Refresh">
+              <i class="fa-solid fa-rotate-right"></i>
+            </button>
+          </div>
+          <div id="chat-list-container" class="flex-1 overflow-y-auto divide-y divide-slate-800/50">
+            <!-- Sessions inserted dynamically -->
+          </div>
+        </div>
+
+        <!-- Selected Chat Main Screen -->
+        <div class="flex-1 flex flex-col bg-slate-900 h-full min-w-0">
+          <div id="chat-header"
+            class="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between shrink-0">
+            <div class="flex items-center space-x-3">
+              <div id="active-chat-avatar"
+                class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-lg">
+                👤
+              </div>
+              <div>
+                <h3 id="active-chat-name" class="font-bold text-white text-sm">Select a conversation</h3>
+                <p id="active-chat-meta" class="text-xs text-slate-400">Click on any chat session on the left to start
+                  responding</p>
+              </div>
+            </div>
+            <div id="active-chat-actions" class="hidden flex items-center space-x-3">
+              <button id="toggle-mode-btn" onclick="toggleActiveChatMode()"
+                class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-headset"></i> <span id="toggle-mode-text">Take Over Chat (Human)</span>
+              </button>
+              <button onclick="deleteActiveChat()" class="text-slate-400 hover:text-rose-400 p-2 text-sm transition"
+                title="Delete Chat">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Messages Scroll View -->
+          <div id="chat-messages-box" class="flex-1 p-5 overflow-y-auto space-y-4 chat-scroll">
+            <div class="flex items-center justify-center h-full text-slate-500 text-sm">
+              Select a conversation to view chat history
+            </div>
+          </div>
+
+          <!-- Chat Input Area -->
+          <div id="chat-input-area" class="p-4 border-t border-slate-800 bg-slate-950/80 shrink-0 hidden">
+            <form onsubmit="handleSendAdminReply(event)" class="flex items-center space-x-3">
+              <input type="text" id="admin-message-input" autocomplete="off" placeholder="Type message as Concierge..."
+                class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 text-sm" />
+              <button type="submit"
+                class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-5 py-3 rounded-xl transition text-sm flex items-center space-x-1 shrink-0">
+                <span>Send</span>
+                <i class="fa-solid fa-paper-plane text-xs"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: PUPPY INVENTORY -->
+      <section id="tab-puppies" class="hidden p-6 max-w-7xl w-full mx-auto space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-2xl font-bold text-white tracking-tight">Puppy Inventory</h2>
+            <p class="text-slate-400 text-sm mt-0.5">Manage available puppies, pricing, photos, and adoption statuses
+            </p>
+          </div>
+          <button onclick="openPuppyModal()"
+            class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl transition text-sm flex items-center space-x-2">
+            <i class="fa-solid fa-plus"></i>
+            <span>Add New Puppy</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="puppies-grid">
+          <!-- Puppy Cards inserted dynamically -->
+        </div>
+      </section>
+
+      <!-- TAB 3: ORDERS & DEPOSITS -->
+      <section id="tab-orders" class="hidden p-6 max-w-7xl w-full mx-auto space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-2xl font-bold text-white tracking-tight">Orders & Reservations</h2>
+            <p class="text-slate-400 text-sm mt-0.5">Track adoption reservations, deposits paid, and order statuses</p>
+          </div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="bg-slate-900 border-b border-slate-800 text-xs uppercase font-semibold text-slate-400">
+              <tr>
+                <th class="p-4">Order #</th>
+                <th class="p-4">Customer</th>
+                <th class="p-4">Puppy</th>
+                <th class="p-4">Total Price</th>
+                <th class="p-4">Deposit Paid</th>
+                <th class="p-4">Status</th>
+                <th class="p-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="orders-table-body" class="divide-y divide-slate-800/60">
+              <!-- Orders inserted dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 4: CUSTOMER LEADS -->
+      <section id="tab-customers" class="hidden p-6 max-w-7xl w-full mx-auto space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-2xl font-bold text-white tracking-tight">Customer CRM Leads</h2>
+            <p class="text-slate-400 text-sm mt-0.5">Manage customer contact details, notes, and inquiries</p>
+          </div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="bg-slate-900 border-b border-slate-800 text-xs uppercase font-semibold text-slate-400">
+              <tr>
+                <th class="p-4">Name</th>
+                <th class="p-4">Email</th>
+                <th class="p-4">Phone</th>
+                <th class="p-4">Location</th>
+                <th class="p-4">Notes</th>
+              </tr>
+            </thead>
+            <tbody id="customers-table-body" class="divide-y divide-slate-800/60">
+              <!-- Customers inserted dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 5: PAYMENTS LOG -->
+      <section id="tab-payments" class="hidden p-6 max-w-7xl w-full mx-auto space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-white tracking-tight">Payments Log</h2>
+          <p class="text-slate-400 text-sm mt-0.5">Verified financial transactions and payment receipts</p>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="bg-slate-900 border-b border-slate-800 text-xs uppercase font-semibold text-slate-400">
+              <tr>
+                <th class="p-4">Date</th>
+                <th class="p-4">Customer</th>
+                <th class="p-4">Amount</th>
+                <th class="p-4">Method</th>
+                <th class="p-4">Transaction Ref</th>
+                <th class="p-4">Status</th>
+              </tr>
+            </thead>
+            <tbody id="payments-table-body" class="divide-y divide-slate-800/60">
+              <!-- Payments inserted dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 6: AI KNOWLEDGE & FAQS -->
+      <section id="tab-ai" class="hidden p-6 max-w-5xl w-full mx-auto space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-white tracking-tight">AI Knowledge Base & FAQs</h2>
+          <p class="text-slate-400 text-sm mt-0.5">Configure system prompt instructions and automated Q&A responses</p>
+        </div>
+        <form onsubmit="saveAIKnowledge(event)" class="space-y-6 bg-slate-950 border border-slate-800 p-6 rounded-2xl">
+          <div>
+            <label class="block text-sm font-semibold text-slate-300 mb-2">AI System Persona Prompt</label>
+            <textarea id="ai-system-prompt" rows="5"
+              class="w-full bg-slate-900 border border-slate-800 rounded-xl p-4 text-slate-200 text-sm focus:outline-none focus:border-amber-500"></textarea>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <label class="block text-sm font-semibold text-slate-300">Automated FAQs</label>
+              <button type="button" onclick="addFaqRow()"
+                class="text-xs bg-slate-900 border border-slate-700 hover:border-amber-500 text-amber-400 px-3 py-1.5 rounded-lg transition">
+                + Add FAQ Item
+              </button>
+            </div>
+            <div id="faqs-container" class="space-y-4">
+              <!-- FAQs dynamically inserted -->
+            </div>
+          </div>
+
+          <button type="submit"
+            class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6 py-3 rounded-xl transition text-sm">
+            Save Knowledge Settings
+          </button>
+        </form>
+      </section>
+
+      <!-- TAB 7: BUSINESS INFO -->
+      <section id="tab-business" class="hidden p-6 max-w-4xl w-full mx-auto space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-white tracking-tight">Business Information & Policies</h2>
+          <p class="text-slate-400 text-sm mt-0.5">Contact numbers, kennel address, health guarantee details, and
+            shipping policy</p>
+        </div>
+        <form onsubmit="saveBusinessInfo(event)" class="space-y-5 bg-slate-950 border border-slate-800 p-6 rounded-2xl">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Business Name</label>
+              <input type="text" id="biz-name"
+                class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Phone Number</label>
+              <input type="text" id="biz-phone"
+                class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Email Address</label>
+              <input type="email" id="biz-email"
+                class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Operating Hours</label>
+              <input type="text" id="biz-hours"
+                class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Kennel Location Address</label>
+            <input type="text" id="biz-address"
+              class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Health Guarantee Details</label>
+            <textarea id="biz-health" rows="3"
+              class="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-amber-500"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Shipping & Flight Nanny
+              Policy</label>
+            <textarea id="biz-shipping" rows="3"
+              class="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-amber-500"></textarea>
+          </div>
+          <button type="submit"
+            class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6 py-3 rounded-xl transition text-sm">
+            Save Business Information
+          </button>
+        </form>
+      </section>
+
+      <!-- TAB 8: WHATSAPP -->
+      <section id="tab-whatsapp" class="hidden p-6 max-w-4xl w-full mx-auto space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-white tracking-tight">WhatsApp Direct Integration</h2>
+          <p class="text-slate-400 text-sm mt-0.5">Configure floating button phone number and auto pre-filled message
+          </p>
+        </div>
+        <form onsubmit="saveWhatsAppSettings(event)"
+          class="space-y-5 bg-slate-950 border border-slate-800 p-6 rounded-2xl">
+          <div class="flex items-center space-x-3 mb-2">
+            <input type="checkbox" id="wa-enabled" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer" />
+            <label for="wa-enabled" class="text-sm font-medium text-slate-200 cursor-pointer">Enable Floating WhatsApp
+              Button on Website</label>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">WhatsApp Phone Number
+              (International Format)</label>
+            <input type="text" id="wa-phone" placeholder="+19793466792"
+              class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Default Greeting Pre-filled
+              Text</label>
+            <textarea id="wa-default-msg" rows="3"
+              class="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"></textarea>
+          </div>
+          <button type="submit"
+            class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-6 py-3 rounded-xl transition text-sm">
+            Save WhatsApp Configuration
+          </button>
+        </form>
+      </section>
+
+      <!-- TAB 9: WIDGET CUSTOMIZER -->
+      <section id="tab-widget" class="hidden p-6 max-w-4xl w-full mx-auto space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-white tracking-tight">Live Chat Widget Customizer</h2>
+          <p class="text-slate-400 text-sm mt-0.5">Customize widget title, branding color, and welcome message</p>
+        </div>
+        <form onsubmit="saveWidgetSettings(event)"
+          class="space-y-5 bg-slate-950 border border-slate-800 p-6 rounded-2xl">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Widget Title</label>
+              <input type="text" id="widget-title"
+                class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Primary Color (Hex)</label>
+              <input type="color" id="widget-color"
+                class="w-full h-10 bg-slate-900 border border-slate-800 rounded-xl p-1 cursor-pointer" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Welcome Greeting Message</label>
+            <textarea id="widget-welcome" rows="3"
+              class="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-amber-500"></textarea>
+          </div>
+          <button type="submit"
+            class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6 py-3 rounded-xl transition text-sm">
+            Save Widget Customizations
+          </button>
+        </form>
+      </section>
+
+      <!-- TAB 10: SECURITY & SETTINGS -->
+      <section id="tab-settings" class="hidden p-6 max-w-4xl w-full mx-auto space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-white tracking-tight">Security & Admin Settings</h2>
+          <p class="text-slate-400 text-sm mt-0.5">Change security access code and auto-logout timer</p>
+        </div>
+        <form onsubmit="saveAdminSettings(event)"
+          class="space-y-5 bg-slate-950 border border-slate-800 p-6 rounded-2xl">
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">New Security Access Code (Leave
+              blank to keep current)</label>
+            <input type="password" id="new-admin-code" placeholder="••••••••"
+              class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Inactivity Timeout
+              (Minutes)</label>
+            <input type="number" id="inactivity-timeout-input" min="5" max="240"
+              class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500" />
+          </div>
+          <button type="submit"
+            class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6 py-3 rounded-xl transition text-sm">
+            Update Security Settings
+          </button>
+        </form>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- PUPPY EDIT / ADD MODAL -->
+  <div id="puppy-modal"
+    class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div
+      class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 id="puppy-modal-title" class="font-bold text-white text-lg">Add New Puppy</h3>
+        <button onclick="closePuppyModal()" class="text-slate-400 hover:text-white text-xl"><i
+            class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form onsubmit="handleSavePuppy(event)" class="space-y-4 text-sm">
+        <input type="hidden" id="pup-edit-id" />
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Puppy Name</label>
+            <input type="text" id="pup-name" required
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Breed</label>
+            <input type="text" id="pup-breed" required placeholder="e.g. Cavapoo"
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500" />
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Gender</label>
+            <select id="pup-gender"
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500">
+              <option value="Female">Female</option>
+              <option value="Male">Male</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Price ($)</label>
+            <input type="number" id="pup-price" required
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Status</label>
+            <select id="pup-status"
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500">
+              <option value="Available">Available</option>
+              <option value="Reserved">Reserved</option>
+              <option value="Adopted">Adopted</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Coat Color</label>
+            <input type="text" id="pup-color"
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Est Weight</label>
+            <input type="text" id="pup-weight" placeholder="3.5 lbs"
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Photo Image URL</label>
+          <input type="text" id="pup-image"
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Description</label>
+          <textarea id="pup-desc" rows="3"
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500"></textarea>
+        </div>
+        <div class="flex justify-end space-x-3 pt-2">
+          <button type="button" onclick="closePuppyModal()"
+            class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300">Cancel</button>
+          <button type="submit"
+            class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">Save Puppy</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT APP LOGIC -->
+  <script>
+    let authToken = localStorage.getItem('plush_admin_token') || null;
+    let activeSessionId = null;
+    let activeChats = [];
+    let activeMessages = [];
+    let socket = null;
+
+    // Check Session on Load
+    document.addEventListener('DOMContentLoaded', () => {
+      checkAuthSession();
+    });
+
+    function checkAuthSession() {
+      fetch('/api/auth/session', {
+        headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {}
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.authenticated) {
+            showDashboard(data.inactivity_timeout_mins);
+          } else {
+            showLogin();
+          }
+        })
+        .catch(() => showLogin());
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const code = document.getElementById('access-code-input').value;
+      const errEl = document.getElementById('login-error');
+      errEl.classList.add('hidden');
+
+      fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.token) {
+            authToken = data.token;
+            localStorage.setItem('plush_admin_token', authToken);
+            showDashboard(data.inactivity_timeout_mins);
+          } else {
+            errEl.innerText = data.error || 'Invalid access code';
+            errEl.classList.remove('hidden');
+          }
+        })
+        .catch(() => {
+          errEl.innerText = 'Server connection error';
+          errEl.classList.remove('hidden');
+        });
+    }
+
+    function handleLogout() {
+      fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
+        authToken = null;
+        localStorage.removeItem('plush_admin_token');
+        showLogin();
+      });
+    }
+
+    function showLogin() {
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('dashboard').classList.add('hidden');
+    }
+
+    function showDashboard(timeoutMins = 30) {
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('dashboard').classList.remove('hidden');
+      document.getElementById('session-timer-text').innerText = `Timeout: ${timeoutMins}m`;
+
+      initSocket();
+      fetchChats();
+      fetchPuppies();
+      fetchOrders();
+      fetchCustomers();
+      fetchPayments();
+      fetchAIKnowledge();
+      fetchBusinessInfo();
+      fetchWhatsAppSettings();
+      fetchWidgetSettings();
+      fetchAdminSettings();
+    }
+
+    function initSocket() {
+      if (!window.io) return;
+      socket = io();
+      socket.emit('join:admin', { adminToken: authToken, businessId: 'biz_001' });
+
+      socket.on('chat:message', (msg) => {
+        if ((msg.conversation_id || msg.session_id) === activeSessionId) {
+          appendMessageUI(msg);
+        }
+        fetchChats(); // Refresh session list
+      });
+
+      socket.on('chat:session_updated', () => {
+        fetchChats();
+      });
+
+      socket.on('chat:takeover_requested', (data) => {
+        alert(`🔔 Live Chat Takeover Requested by customer: ${data.customerName || 'Visitor'}`);
+        fetchChats();
+      });
+    }
+
+    // Tab Switcher
+    function switchTab(tabName) {
+      document.querySelectorAll('main > section').forEach(sec => sec.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active-tab', 'text-white', 'bg-slate-900'));
+
+      const targetSec = document.getElementById(`tab-${tabName}`);
+      const targetBtn = document.getElementById(`nav-${tabName}`);
+
+      if (targetSec) targetSec.classList.remove('hidden');
+      if (targetBtn) {
+        targetBtn.classList.add('active-tab', 'text-white', 'bg-slate-900');
+      }
+    }
+
+    // --- CHATS LOGIC ---
+    function fetchChats() {
+      fetch('/api/admin/chats', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(data => {
+          activeChats = data.chats || [];
+          activeMessages = data.messages || [];
+          renderChatList();
+          if (activeSessionId) renderActiveChatMessages();
+        });
+    }
+
+    function renderChatList() {
+      const container = document.getElementById('chat-list-container');
+      container.innerHTML = '';
+
+      if (activeChats.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-500 p-4 text-center">No active chat sessions</p>';
+        return;
+      }
+
+      activeChats.forEach(c => {
+        const item = document.createElement('div');
+        item.onclick = () => selectChatSession(c.id);
+        const isActive = c.id === activeSessionId;
+
+        item.className = `p-4 cursor-pointer transition flex items-start space-x-3 ${isActive ? 'bg-slate-900 border-l-4 border-amber-500' : 'hover:bg-slate-900/60'}`;
+
+        item.innerHTML = `
+          <div class="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-sm shrink-0">
+            ${c.mode === 'human' ? '👤' : '🤖'}
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-white text-xs truncate">${escapeHtml(c.customer_name)}</h4>
+              <span class="text-[10px] ${c.mode === 'human' ? 'text-amber-400 font-semibold' : 'text-slate-500'}">
+                ${c.mode === 'human' ? 'HUMAN' : 'AI'}
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-400 truncate mt-0.5">${escapeHtml(c.customer_email || 'Website Visitor')}</p>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function selectChatSession(sessionId) {
+      activeSessionId = sessionId;
+      renderChatList();
+
+      const session = activeChats.find(c => c.id === sessionId);
+      if (!session) return;
+
+      document.getElementById('active-chat-name').innerText = session.customer_name;
+      document.getElementById('active-chat-meta').innerText = `Session ID: ${session.id} | Mode: ${session.mode.toUpperCase()}`;
+      document.getElementById('active-chat-actions').classList.remove('hidden');
+      document.getElementById('chat-input-area').classList.remove('hidden');
+
+      const toggleBtnText = document.getElementById('toggle-mode-text');
+      if (session.mode === 'human') {
+        toggleBtnText.innerText = 'Switch Back to AI';
+      } else {
+        toggleBtnText.innerText = 'Take Over Chat (Human)';
+      }
+
+      renderActiveChatMessages();
+    }
+
+    function renderActiveChatMessages() {
+      const box = document.getElementById('chat-messages-box');
+      box.innerHTML = '';
+
+      const msgs = activeMessages.filter(m => m.session_id === activeSessionId);
+      if (msgs.length === 0) {
+        box.innerHTML = '<p class="text-xs text-slate-500 text-center py-8">No messages in this chat yet</p>';
+        return;
+      }
+
+      msgs.forEach(m => appendMessageUI(m, false));
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function appendMessageUI(msg, scroll = true) {
+      const box = document.getElementById('chat-messages-box');
+      const isMe = msg.sender === 'human';
+
+      const div = document.createElement('div');
+      div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
+
+      const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+      div.innerHTML = `
+        <span class="text-[10px] text-slate-500 mb-1 px-1">${escapeHtml(msg.sender_name || msg.sender)} • ${timeStr}</span>
+        <div class="max-w-md px-4 py-2.5 rounded-2xl text-sm ${isMe ? 'bg-amber-500 text-slate-950 font-medium rounded-tr-none' : 'bg-slate-800 text-slate-100 rounded-tl-none border border-slate-700'}">
+          ${escapeHtml(msg.text)}
+        </div>
+      `;
+      box.appendChild(div);
+      if (scroll) box.scrollTop = box.scrollHeight;
+    }
+
+    function handleSendAdminReply(e) {
+      e.preventDefault();
+      const input = document.getElementById('admin-message-input');
+      const text = input.value.trim();
+      if (!text || !activeSessionId) return;
+
+      fetch(`/api/admin/chats/${activeSessionId}/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ text })
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            input.value = '';
+            fetchChats();
+          }
+        });
+    }
+
+    function toggleActiveChatMode() {
+      const session = activeChats.find(c => c.id === activeSessionId);
+      if (!session) return;
+      const newMode = session.mode === 'human' ? 'ai' : 'human';
+
+      fetch(`/api/admin/chats/${activeSessionId}/mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ mode: newMode })
+      })
+        .then(r => r.json())
+        .then(() => fetchChats());
+    }
+
+    function deleteActiveChat() {
+      if (!confirm('Are you sure you want to delete this chat session?')) return;
+      fetch(`/api/admin/chats/${activeSessionId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      })
+        .then(() => {
+          activeSessionId = null;
+          document.getElementById('active-chat-actions').classList.add('hidden');
+          document.getElementById('chat-input-area').classList.add('hidden');
+          fetchChats();
+        });
+    }
+
+    // --- PUPPIES LOGIC ---
+    function fetchPuppies() {
+      fetch('/api/admin/puppies', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(puppies => {
+          const grid = document.getElementById('puppies-grid');
+          grid.innerHTML = '';
+          puppies.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex flex-col shadow-lg';
+            card.innerHTML = `
+              <div class="h-44 bg-slate-900 relative">
+                <img src="${p.image_url || '/placeholder.jpg'}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=600&q=80'" />
+                <span class="absolute top-3 right-3 text-xs font-bold px-2.5 py-1 rounded-full ${p.status === 'Available' ? 'bg-emerald-500/90 text-white' : 'bg-amber-500/90 text-slate-950'}">
+                  ${p.status}
+                </span>
+              </div>
+              <div class="p-5 flex-1 flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <h3 class="font-bold text-white text-lg">${escapeHtml(p.name)}</h3>
+                    <span class="font-bold text-amber-400 text-lg">$${p.price.toLocaleString()}</span>
+                  </div>
+                  <p class="text-xs text-slate-400 mb-2">${escapeHtml(p.breed)} • ${escapeHtml(p.gender)} • ${escapeHtml(p.color || '')}</p>
+                  <p class="text-xs text-slate-500 line-clamp-2">${escapeHtml(p.description || '')}</p>
+                </div>
+                <div class="flex items-center space-x-2 pt-4 border-t border-slate-800/80 mt-4">
+                  <button onclick='editPuppy(${JSON.stringify(p)})' class="flex-1 bg-slate-900 hover:bg-slate-800 text-slate-300 py-2 rounded-xl text-xs font-semibold border border-slate-700">Edit Details</button>
+                  <button onclick="deletePuppy('${p.id}')" class="p-2 text-slate-500 hover:text-rose-400 text-xs"><i class="fa-solid fa-trash"></i></button>
+                </div>
+              </div>
+            `;
+            grid.appendChild(card);
+          });
+        });
+    }
+
+    function openPuppyModal() {
+      document.getElementById('pup-edit-id').value = '';
+      document.getElementById('pup-name').value = '';
+      document.getElementById('pup-breed').value = '';
+      document.getElementById('pup-price').value = '';
+      document.getElementById('pup-color').value = '';
+      document.getElementById('pup-weight').value = '';
+      document.getElementById('pup-image').value = '';
+      document.getElementById('pup-desc').value = '';
+      document.getElementById('puppy-modal-title').innerText = 'Add New Puppy';
+      document.getElementById('puppy-modal').classList.remove('hidden');
+    }
+
+    function editPuppy(p) {
+      document.getElementById('pup-edit-id').value = p.id;
+      document.getElementById('pup-name').value = p.name || '';
+      document.getElementById('pup-breed').value = p.breed || '';
+      document.getElementById('pup-gender').value = p.gender || 'Female';
+      document.getElementById('pup-price').value = p.price || '';
+      document.getElementById('pup-status').value = p.status || 'Available';
+      document.getElementById('pup-color').value = p.color || '';
+      document.getElementById('pup-weight').value = p.weight || '';
+      document.getElementById('pup-image').value = p.image_url || '';
+      document.getElementById('pup-desc').value = p.description || '';
+      document.getElementById('puppy-modal-title').innerText = 'Edit Puppy Details';
+      document.getElementById('puppy-modal').classList.remove('hidden');
+    }
+
+    function closePuppyModal() {
+      document.getElementById('puppy-modal').classList.add('hidden');
+    }
+
+    function handleSavePuppy(e) {
+      e.preventDefault();
+      const id = document.getElementById('pup-edit-id').value;
+      const body = {
+        name: document.getElementById('pup-name').value,
+        breed: document.getElementById('pup-breed').value,
+        gender: document.getElementById('pup-gender').value,
+        price: parseFloat(document.getElementById('pup-price').value),
+        status: document.getElementById('pup-status').value,
+        color: document.getElementById('pup-color').value,
+        weight: document.getElementById('pup-weight').value,
+        image_url: document.getElementById('pup-image').value,
+        description: document.getElementById('pup-desc').value
+      };
+
+      const url = id ? `/api/admin/puppies/${id}` : '/api/admin/puppies';
+      const method = id ? 'PUT' : 'POST';
+
+      fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify(body)
+      })
+        .then(() => {
+          closePuppyModal();
+          fetchPuppies();
+        });
+    }
+
+    function deletePuppy(id) {
+      if (!confirm('Are you sure you want to remove this puppy listing?')) return;
+      fetch(`/api/admin/puppies/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      })
+        .then(() => fetchPuppies());
+    }
+
+    // --- ORDERS LOGIC ---
+    function fetchOrders() {
+      fetch('/api/admin/orders', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(orders => {
+          const tbody = document.getElementById('orders-table-body');
+          tbody.innerHTML = '';
+          orders.forEach(o => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-900/50';
+            tr.innerHTML = `
+              <td class="p-4 font-mono text-amber-400 font-semibold">${escapeHtml(o.order_number)}</td>
+              <td class="p-4">
+                <p class="font-bold text-white">${escapeHtml(o.customer_name)}</p>
+                <p class="text-xs text-slate-500">${escapeHtml(o.customer_email)}</p>
+              </td>
+              <td class="p-4">${escapeHtml(o.puppy_name || 'N/A')}</td>
+              <td class="p-4 font-semibold text-white">$${o.total_amount?.toLocaleString() || '0'}</td>
+              <td class="p-4 text-emerald-400 font-semibold">$${o.deposit_paid?.toLocaleString() || '0'}</td>
+              <td class="p-4">
+                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  ${escapeHtml(o.status)}
+                </span>
+              </td>
+              <td class="p-4 text-right">
+                <button onclick="updateOrderStatus('${o.id}')" class="text-xs text-slate-400 hover:text-white underline">Change Status</button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        });
+    }
+
+    function updateOrderStatus(id) {
+      const status = prompt('Enter new order status (e.g., Pending, Deposit Paid, Completed, Cancelled):');
+      if (!status) return;
+      fetch(`/api/admin/orders/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ status })
+      })
+        .then(() => fetchOrders());
+    }
+
+    // --- CUSTOMERS LOGIC ---
+    function fetchCustomers() {
+      fetch('/api/admin/customers', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(customers => {
+          const tbody = document.getElementById('customers-table-body');
+          tbody.innerHTML = '';
+          customers.forEach(c => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-900/50';
+            tr.innerHTML = `
+              <td class="p-4 font-bold text-white">${escapeHtml(c.name)}</td>
+              <td class="p-4 text-slate-300">${escapeHtml(c.email)}</td>
+              <td class="p-4 text-slate-300">${escapeHtml(c.phone)}</td>
+              <td class="p-4 text-slate-400">${escapeHtml(c.location || 'N/A')}</td>
+              <td class="p-4 text-xs text-slate-400 max-w-xs truncate">${escapeHtml(c.notes || '')}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        });
+    }
+
+    // --- PAYMENTS LOGIC ---
+    function fetchPayments() {
+      fetch('/api/admin/payments', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(payments => {
+          const tbody = document.getElementById('payments-table-body');
+          tbody.innerHTML = '';
+          payments.forEach(p => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-900/50';
+            tr.innerHTML = `
+              <td class="p-4 text-xs text-slate-400">${new Date(p.date).toLocaleDateString()}</td>
+              <td class="p-4 font-bold text-white">${escapeHtml(p.customer_name)}</td>
+              <td class="p-4 font-bold text-emerald-400">$${p.amount?.toLocaleString() || '0'}</td>
+              <td class="p-4 text-slate-300">${escapeHtml(p.method)}</td>
+              <td class="p-4 font-mono text-xs text-slate-400">${escapeHtml(p.transaction_ref)}</td>
+              <td class="p-4 text-xs font-bold text-emerald-400">${escapeHtml(p.status)}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        });
+    }
+
+    // --- AI KNOWLEDGE LOGIC ---
+    function fetchAIKnowledge() {
+      fetch('/api/admin/knowledge', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(k => {
+          document.getElementById('ai-system-prompt').value = k.system_prompt || '';
+          renderFaqs(k.faqs || []);
+        });
+    }
+
+    function renderFaqs(faqs) {
+      const container = document.getElementById('faqs-container');
+      container.innerHTML = '';
+      faqs.forEach((faq, idx) => {
+        const div = document.createElement('div');
+        div.className = 'p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2';
+        div.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-amber-400">FAQ #${idx + 1}</span>
+            <button type="button" onclick="this.parentElement.parentElement.remove()" class="text-xs text-slate-500 hover:text-rose-400"><i class="fa-solid fa-trash"></i></button>
+          </div>
+          <input type="text" value="${escapeHtml(faq.question)}" placeholder="Question" class="faq-q w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200" />
+          <textarea placeholder="Answer" class="faq-a w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200" rows="2">${escapeHtml(faq.answer)}</textarea>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function addFaqRow() {
+      renderFaqs([...getFaqsFromUI(), { id: 'faq_' + Date.now(), question: '', answer: '' }]);
+    }
+
+    function getFaqsFromUI() {
+      const rows = document.querySelectorAll('#faqs-container > div');
+      const list = [];
+      rows.forEach((r, i) => {
+        const q = r.querySelector('.faq-q').value;
+        const a = r.querySelector('.faq-a').value;
+        if (q || a) list.push({ id: 'faq_' + i, question: q, answer: a });
+      });
+      return list;
+    }
+
+    function saveAIKnowledge(e) {
+      e.preventDefault();
+      const body = {
+        system_prompt: document.getElementById('ai-system-prompt').value,
+        faqs: getFaqsFromUI()
+      };
+      fetch('/api/admin/knowledge', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify(body)
+      }).then(() => alert('AI Knowledge saved successfully!'));
+    }
+
+    // --- BUSINESS INFO LOGIC ---
+    function fetchBusinessInfo() {
+      fetch('/api/admin/business', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(b => {
+          document.getElementById('biz-name').value = b.name || '';
+          document.getElementById('biz-phone').value = b.phone || '';
+          document.getElementById('biz-email').value = b.email || '';
+          document.getElementById('biz-hours').value = b.hours || '';
+          document.getElementById('biz-address').value = b.address || '';
+          document.getElementById('biz-health').value = b.health_guarantee || '';
+          document.getElementById('biz-shipping').value = b.shipping_policy || '';
+        });
+    }
+
+    function saveBusinessInfo(e) {
+      e.preventDefault();
+      const body = {
+        name: document.getElementById('biz-name').value,
+        phone: document.getElementById('biz-phone').value,
+        email: document.getElementById('biz-email').value,
+        hours: document.getElementById('biz-hours').value,
+        address: document.getElementById('biz-address').value,
+        health_guarantee: document.getElementById('biz-health').value,
+        shipping_policy: document.getElementById('biz-shipping').value
+      };
+      fetch('/api/admin/business', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify(body)
+      }).then(() => alert('Business information saved successfully!'));
+    }
+
+    // --- WHATSAPP LOGIC ---
+    function fetchWhatsAppSettings() {
+      fetch('/api/admin/whatsapp', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(w => {
+          document.getElementById('wa-enabled').checked = w.enabled !== false;
+          document.getElementById('wa-phone').value = w.phone_number || '';
+          document.getElementById('wa-default-msg').value = w.default_message || '';
+        });
+    }
+
+    function saveWhatsAppSettings(e) {
+      e.preventDefault();
+      const body = {
+        enabled: document.getElementById('wa-enabled').checked,
+        phone_number: document.getElementById('wa-phone').value,
+        default_message: document.getElementById('wa-default-msg').value
+      };
+      fetch('/api/admin/whatsapp', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify(body)
+      }).then(() => alert('WhatsApp settings saved successfully!'));
+    }
+
+    // --- WIDGET SETTINGS LOGIC ---
+    function fetchWidgetSettings() {
+      fetch('/api/admin/chat-settings', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(s => {
+          document.getElementById('widget-title').value = s.widget_title || '';
+          document.getElementById('widget-color').value = s.primary_color || '#d97706';
+          document.getElementById('widget-welcome').value = s.welcome_message || '';
+        });
+    }
+
+    function saveWidgetSettings(e) {
+      e.preventDefault();
+      const body = {
+        widget_title: document.getElementById('widget-title').value,
+        primary_color: document.getElementById('widget-color').value,
+        welcome_message: document.getElementById('widget-welcome').value
+      };
+      fetch('/api/admin/chat-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify(body)
+      }).then(() => alert('Widget settings saved!'));
+    }
+
+    // --- SECURITY SETTINGS LOGIC ---
+    function fetchAdminSettings() {
+      fetch('/api/admin/settings', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(s => {
+          document.getElementById('inactivity-timeout-input').value = s.inactivity_timeout_mins || 30;
+        });
+    }
+
+    function saveAdminSettings(e) {
+      e.preventDefault();
+      const newCode = document.getElementById('new-admin-code').value;
+      const inactivityTimeoutMins = document.getElementById('inactivity-timeout-input').value;
+
+      fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ newCode, inactivityTimeoutMins })
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            alert('Security settings updated successfully!');
+            document.getElementById('new-admin-code').value = '';
+          }
+        });
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+  </script>
+</body>
+
+</html>

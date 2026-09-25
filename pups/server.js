@@ -37,6 +37,12 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+app.get(['/index.html', '/category/all-products.html', '/prosses.html', '/experence.html', '/policy.html', '/contact.html'], (req, res, next) => {
+  res.sendFile(path.join(__dirname, req.path), (error) => {
+    if (error) next(error);
+  });
+});
+
 // Serve public static assets
 app.use(express.static(__dirname));
 

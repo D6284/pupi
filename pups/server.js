@@ -32,6 +32,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Serve the homepage explicitly for local and serverless requests.
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // Serve public static assets
 app.use(express.static(__dirname));
 

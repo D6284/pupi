@@ -270,6 +270,9 @@
           return r.json();
         })
         .then(data => {
+          if (data && data.aiReplyMsg) {
+            appendMessage(data.aiReplyMsg);
+          }
           if (data && data.conversation) {
             currentMode = data.conversation.mode;
             updateHeaderStatus(currentMode);

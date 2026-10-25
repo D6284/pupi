@@ -27,7 +27,7 @@ function callGeminiAPI(model, apiKey, postData) {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData)
         },
-        timeout: 4500
+        timeout: 3000
       },
       (res) => {
         let data = '';
@@ -58,7 +58,7 @@ function callGeminiAPI(model, apiKey, postData) {
  * Query Gemini AI with automatic fallback across models
  */
 async function queryGemini(contents, systemInstructionText, apiKey) {
-  const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+  const models = ['gemini-3.8-flash', 'gemini-2.5-flash'];
   const postData = JSON.stringify({
     systemInstruction: { parts: [{ text: systemInstructionText }] },
     contents,

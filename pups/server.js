@@ -261,6 +261,30 @@ app.get('/api/auth/session', async (req, res) => {
 
 // --- PUBLIC CHAT WIDGET & CONFIG API ---
 
+app.get('/api/public/health', async (req, res) => {
+  const hasDbUrl = !!(process.env.DATABASE_URL || process.env.SUPABASE_DB_URL);
+  if (!hasDbUrl) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'DATABASE_URL environment variable is missing in Vercel settings.'
+    });
+  }
+  try {
+    const settings = await db.get('chat_settings');
+    return res.json({
+      status: 'healthy',
+      database: 'connected',
+      widget_title: settings?.widget_title || 'Plush Pups Concierge'
+    });
+  } catch (err) {
+    return res.status(500).json({
+      status: 'error',
+      database: 'connection_failed',
+      message: err.message
+    });
+  }
+});
+
 app.get('/api/public/config', async (req, res) => {
   return res.json({
     chat_settings: await db.get('chat_settings'),
@@ -793,7 +817,16 @@ app.put('/api/admin/settings', requireAdmin, async (req, res) => {
 app.use((error, req, res, next) => {
   if (res.headersSent) return next(error);
   console.error('[api] Request failed:', error);
-  return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Request could not be completed' : error.message });
+  const isDbError = error.message && (
+    error.message.includes('DATABASE_URL') ||
+    error.message.includes('password') ||
+    error.message.includes('certificate') ||
+    error.message.includes('connect')
+  );
+  const message = isDbError
+    ? `Database connection error: ${error.message}`
+    : (process.env.NODE_ENV === 'production' ? (error.message || 'Request could not be completed') : error.message);
+  return res.status(500).json({ error: message });
 });
 
 // --- REALTIME SOCKET.IO PRIVATE ROOM ARCHITECTURE ---

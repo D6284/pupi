@@ -222,7 +222,8 @@
         body: JSON.stringify({ conversationId, sessionToken, name: customerName, businessId: BUSINESS_ID })
       })
         .then(async response => {
-          const data = await response.json();
+          let data = {};
+          try { data = await response.json(); } catch (_) {}
           if (!response.ok) throw new Error(data.error || 'Chat could not be started.');
           return data;
         })
@@ -238,7 +239,10 @@
           }
           if (data.messages && data.messages.length > 0) renderMessages(data.messages);
         })
-        .catch(() => showRequestError('Chat could not connect. Please try again.', false, true));
+        .catch(err => {
+          console.error('[PlushChat] Init error:', err);
+          showRequestError(err.message || 'Chat could not connect. Please try again.', false, true);
+        });
     }
 
     function showRequestError(message, canRestart, canRetry = false) {

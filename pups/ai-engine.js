@@ -1,4 +1,4 @@
-﻿const https = require('https');
+const https = require('https');
 const db = require('./db');
 
 /**
@@ -27,7 +27,7 @@ function callGeminiAPI(model, apiKey, postData) {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData)
         },
-        timeout: 12000
+        timeout: 4500
       },
       (res) => {
         let data = '';
@@ -58,7 +58,7 @@ function callGeminiAPI(model, apiKey, postData) {
  * Query Gemini AI with automatic fallback across models
  */
 async function queryGemini(contents, systemInstructionText, apiKey) {
-  const models = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.7-flash'];
+  const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
   const postData = JSON.stringify({
     systemInstruction: { parts: [{ text: systemInstructionText }] },
     contents,

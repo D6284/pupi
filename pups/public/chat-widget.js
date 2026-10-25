@@ -353,7 +353,8 @@
         body: JSON.stringify({ conversationId, sessionToken, text, senderName: customerName, businessId: BUSINESS_ID })
       })
         .then(async response => {
-          const data = await response.json();
+          let data = {};
+          try { data = await response.json(); } catch (_) {}
           if (response.status === 403) {
             document.getElementById('msg-' + temporaryId)?.remove();
             showRequestError('This chat session expired.', true);
@@ -375,9 +376,10 @@
             updateHeaderStatus(currentMode);
           }
         })
-        .catch(() => {
+        .catch(err => {
+          console.error('[PlushChat] Send error:', err);
           document.getElementById('msg-' + temporaryId)?.remove();
-          showRequestError('Your message could not be sent. Please try again.', false);
+          showRequestError(err.message || 'Your message could not be sent. Please try again.', false);
         });
     }
 

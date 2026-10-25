@@ -32,7 +32,14 @@ const createId = prefix => `${prefix}${Date.now()}_${crypto.randomBytes(8).toStr
 
 const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map(origin => origin.trim()).filter(Boolean);
 app.use(cors({
-  origin: (origin, callback) => callback(null, !origin || !process.env.VERCEL || corsOrigins.includes(origin)),
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (corsOrigins.length > 0) {
+      if (corsOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
+    }
+    return callback(null, true);
+  },
   credentials: true
 }));
 app.use(express.json());

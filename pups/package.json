@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "migrate:db": "node scripts/migrate-json-to-postgres.js",
+    "test:chat-isolation": "node test_chat_isolation.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -13,6 +15,7 @@
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.23.1",
     "socket.io": "^4.7.5",
     "socket.io-client": "^4.7.5"
   }

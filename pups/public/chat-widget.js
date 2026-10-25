@@ -25,6 +25,7 @@
     let customerName = localStorage.getItem('plush_chat_customer_name') || 'Guest Visitor';
     let isWidgetOpen = false;
     let currentMode = 'ai';
+    let messagePollTimer = null;
 
     // ── Root HTML ──────────────────────────────────────────────────────────
     const root = document.createElement('div');
@@ -137,6 +138,24 @@
         gap: 10px;
         margin: 4px 0;
       }
+      .plush-chat-error {
+        margin: 10px;
+        padding: 10px 12px;
+        border: 1px solid #fecaca;
+        border-radius: 8px;
+        background: #fff1f2;
+        color: #9f1239;
+        font-size: 12px;
+      }
+      .plush-chat-error button {
+        margin-top: 8px;
+        border: 0;
+        background: transparent;
+        color: #881337;
+        font-weight: 700;
+        text-decoration: underline;
+        cursor: pointer;
+      }
     `;
     document.head.appendChild(style);
 
@@ -194,29 +213,72 @@
     });
 
     // ── Init / restore session ────────────────────────────────────────────
-    fetch('/api/public/chat/init', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversationId, sessionToken, name: customerName, businessId: BUSINESS_ID })
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.conversation) {
-          conversationId = data.conversation.id || data.conversation.conversation_id;
-          sessionToken = data.sessionToken || data.conversation.session_token;
-          currentMode = data.conversation.mode;
-          localStorage.setItem('plush_chat_conversation_id', conversationId);
-          localStorage.setItem('plush_chat_session_token', sessionToken);
-          updateHeaderStatus(currentMode);
-          connectIsolatedSocket();
-        }
-        if (data.messages && data.messages.length > 0) renderMessages(data.messages);
+    initializeChat();
+
+    function initializeChat() {
+      return fetch('/api/public/chat/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId, sessionToken, name: customerName, businessId: BUSINESS_ID })
       })
-      .catch(err => console.error('Error initializing chat:', err));
+        .then(async response => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Chat could not be started.');
+          return data;
+        })
+        .then(data => {
+          if (data.conversation) {
+            conversationId = data.conversation.id || data.conversation.conversation_id;
+            sessionToken = data.sessionToken || data.conversation.session_token;
+            currentMode = data.conversation.mode;
+            localStorage.setItem('plush_chat_conversation_id', conversationId);
+            localStorage.setItem('plush_chat_session_token', sessionToken);
+            updateHeaderStatus(currentMode);
+            connectIsolatedSocket();
+          }
+          if (data.messages && data.messages.length > 0) renderMessages(data.messages);
+        })
+        .catch(() => showRequestError('Chat could not connect. Please try again.', false, true));
+    }
+
+    function showRequestError(message, canRestart, canRetry = false) {
+      let errorBox = document.getElementById('plush-chat-error');
+      if (!errorBox) {
+        errorBox = document.createElement('div');
+        errorBox.id = 'plush-chat-error';
+        errorBox.className = 'plush-chat-error';
+        messagesBox.appendChild(errorBox);
+      }
+      errorBox.textContent = message;
+      errorBox.querySelector('button')?.remove();
+      if (canRestart || canRetry) {
+        const restartButton = document.createElement('button');
+        restartButton.type = 'button';
+        restartButton.textContent = canRestart ? 'Start a new chat' : 'Try again';
+        restartButton.addEventListener('click', () => {
+          errorBox.remove();
+          if (canRestart) {
+            localStorage.removeItem('plush_chat_conversation_id');
+            localStorage.removeItem('plush_chat_session_token');
+            conversationId = null;
+            sessionToken = null;
+          }
+          initializeChat();
+        });
+        errorBox.appendChild(restartButton);
+      }
+      scrollToBottom();
+    }
+
+    function clearRequestError() {
+      document.getElementById('plush-chat-error')?.remove();
+    }
 
     // ── Socket ─────────────────────────────────────────────────────────────
     function connectIsolatedSocket() {
-      if (!socket || !conversationId || !sessionToken) return;
+      if (!conversationId || !sessionToken) return;
+      if (!messagePollTimer) messagePollTimer = setInterval(pollMessages, 5000);
+      if (!socket) return;
       socket.emit('join:customer_conversation', { conversationId, sessionToken, businessId: BUSINESS_ID });
       socket.on('chat:message', (msg) => {
         if ((msg.conversation_id || msg.session_id) === conversationId) appendMessage(msg);
@@ -227,6 +289,35 @@
           updateHeaderStatus(currentMode);
         }
       });
+      socket.on('connect_error', () => {
+        if (!messagePollTimer) messagePollTimer = setInterval(pollMessages, 5000);
+      });
+    }
+
+    function pollMessages() {
+      if (!conversationId || !sessionToken) return;
+      fetch('/api/public/chat/messages', {
+        headers: {
+          'X-Session-Token': sessionToken,
+          'X-Conversation-Id': conversationId,
+          'X-Business-Id': BUSINESS_ID
+        }
+      })
+        .then(async response => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(response.status === 403 ? 'session' : (data.error || 'Chat history is unavailable.'));
+          return data;
+        })
+        .then(data => {
+          clearRequestError();
+          currentMode = data.conversation?.mode || currentMode;
+          updateHeaderStatus(currentMode);
+          (data.messages || []).forEach(message => appendMessage(message));
+        })
+        .catch(error => showRequestError(
+          error.message === 'session' ? 'This chat session expired.' : 'Could not refresh your chat. Your messages are still saved.',
+          error.message === 'session'
+        ));
     }
 
     function updateHeaderStatus(mode) {
@@ -242,8 +333,9 @@
     // ── Send message ───────────────────────────────────────────────────────
     function sendMessage(text) {
       if (!conversationId || !sessionToken) return;
+      const temporaryId = 'temp_' + Date.now();
       appendMessage({
-        id: 'temp_' + Date.now(),
+        id: temporaryId,
         conversation_id: conversationId,
         sender: 'customer',
         sender_name: customerName,
@@ -260,16 +352,21 @@
         },
         body: JSON.stringify({ conversationId, sessionToken, text, senderName: customerName, businessId: BUSINESS_ID })
       })
-        .then(r => {
-          if (r.status === 403) {
-            localStorage.removeItem('plush_chat_conversation_id');
-            localStorage.removeItem('plush_chat_session_token');
-            location.reload();
+        .then(async response => {
+          const data = await response.json();
+          if (response.status === 403) {
+            document.getElementById('msg-' + temporaryId)?.remove();
+            showRequestError('This chat session expired.', true);
             return null;
           }
-          return r.json();
+          if (!response.ok) throw new Error(data.error || 'Your message could not be sent.');
+          return data;
         })
         .then(data => {
+          if (!data) return;
+          clearRequestError();
+          document.getElementById('msg-' + temporaryId)?.remove();
+          if (data.customerMsg) appendMessage(data.customerMsg);
           if (data && data.aiReplyMsg) {
             appendMessage(data.aiReplyMsg);
           }
@@ -278,7 +375,10 @@
             updateHeaderStatus(currentMode);
           }
         })
-        .catch(err => console.error('Error sending message:', err));
+        .catch(() => {
+          document.getElementById('msg-' + temporaryId)?.remove();
+          showRequestError('Your message could not be sent. Please try again.', false);
+        });
     }
 
     // ── Render messages ────────────────────────────────────────────────────

@@ -63,10 +63,6 @@
           <i class="fa-solid fa-arrow-right text-sm"></i>
         </button>
       </form>
-      <div class="mt-6 text-center text-xs text-slate-500">
-        Default setup code: <code
-          class="text-amber-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">admin123</code>
-      </div>
     </div>
   </div>
 
@@ -597,11 +593,13 @@
 
   <!-- JAVASCRIPT APP LOGIC -->
   <script>
-    let authToken = localStorage.getItem('plush_admin_token') || null;
+    let authToken = null;
+    localStorage.removeItem('plush_admin_token');
     let activeSessionId = null;
     let activeChats = [];
     let activeMessages = [];
     let socket = null;
+    let chatRefreshTimer = null;
 
     // Check Session on Load
     document.addEventListener('DOMContentLoaded', () => {
@@ -636,9 +634,8 @@
       })
         .then(r => r.json())
         .then(data => {
-          if (data.success && data.token) {
-            authToken = data.token;
-            localStorage.setItem('plush_admin_token', authToken);
+          if (data.success) {
+            authToken = data.token || null;
             showDashboard(data.inactivity_timeout_mins);
           } else {
             errEl.innerText = data.error || 'Invalid access code';
@@ -654,7 +651,6 @@
     function handleLogout() {
       fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
         authToken = null;
-        localStorage.removeItem('plush_admin_token');
         showLogin();
       });
     }
@@ -671,6 +667,8 @@
 
       initSocket();
       fetchChats();
+      if (chatRefreshTimer) clearInterval(chatRefreshTimer);
+      chatRefreshTimer = setInterval(fetchChats, 5000);
       fetchPuppies();
       fetchOrders();
       fetchCustomers();
@@ -721,12 +719,20 @@
     // --- CHATS LOGIC ---
     function fetchChats() {
       fetch('/api/admin/chats', { headers: { 'Authorization': `Bearer ${authToken}` } })
-        .then(r => r.json())
+        .then(async r => {
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.error || 'Conversations could not be loaded.');
+          return data;
+        })
         .then(data => {
           activeChats = data.chats || [];
           activeMessages = data.messages || [];
           renderChatList();
           if (activeSessionId) renderActiveChatMessages();
+        })
+        .catch(() => {
+          document.getElementById('chat-list-container').innerHTML =
+            '<p class="text-xs text-rose-400 p-4 text-center">Conversations could not be loaded. Check your connection and try again.</p>';
         });
     }
 

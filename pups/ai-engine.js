@@ -106,10 +106,15 @@ function formatHistory(sessionHistory, customerText) {
 /**
  * Build rich system prompt with live inventory, images, page links, and business info
  */
-function buildSystemPrompt() {
-  const business = db.get('business_info') || {};
-  const aiKnowledge = db.get('ai_knowledge') || {};
-  const puppies = db.get('puppies') || [];
+async function buildSystemPrompt() {
+  const [businessData, knowledgeData, puppyData] = await Promise.all([
+    db.get('business_info'),
+    db.get('ai_knowledge'),
+    db.get('puppies')
+  ]);
+  const business = businessData || {};
+  const aiKnowledge = knowledgeData || {};
+  const puppies = puppyData || [];
 
   const availablePuppies = puppies
     .filter(p => p.status === 'Available')
@@ -166,11 +171,16 @@ CRITICAL FORMATTING & CONVERSATIONAL INSTRUCTIONS:
 /**
  * Fallback rule-based response when Gemini is unreachable
  */
-function generateFallbackResponse(customerText) {
+async function generateFallbackResponse(customerText) {
   const text = customerText.toLowerCase().trim();
-  const puppies = db.get('puppies') || [];
-  const business = db.get('business_info') || {};
-  const faqs = db.get('ai_knowledge')?.faqs || [];
+  const [puppyData, businessData, knowledgeData] = await Promise.all([
+    db.get('puppies'),
+    db.get('business_info'),
+    db.get('ai_knowledge')
+  ]);
+  const puppies = puppyData || [];
+  const business = businessData || {};
+  const faqs = knowledgeData?.faqs || [];
 
   for (const faq of faqs) {
     const qLower = faq.question.toLowerCase();
@@ -236,8 +246,12 @@ function generateFallbackResponse(customerText) {
  */
 async function generateAIResponse(customerText, sessionHistory = [], businessId = 'biz_001') {
   const text = (customerText || '').toLowerCase().trim();
-  const business = db.get('business_info') || {};
-  const aiKnowledge = db.get('ai_knowledge') || {};
+  const [businessData, knowledgeData] = await Promise.all([
+    db.get('business_info'),
+    db.get('ai_knowledge')
+  ]);
+  const business = businessData || {};
+  const aiKnowledge = knowledgeData || {};
 
   // 1. Human takeover keywords
   const humanKeywords = ['human', 'person', 'owner', 'talk to someone', 'real agent', 'representative', 'speak with someone', 'call me', 'phone number'];
@@ -249,12 +263,12 @@ async function generateAIResponse(customerText, sessionHistory = [], businessId 
   }
 
   // 2. Gemini AI response
-  const apiKey = aiKnowledge.gemini_api_key || process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
 
   if (apiKey) {
     try {
       const contents = formatHistory(sessionHistory, customerText);
-      const systemPrompt = buildSystemPrompt();
+      const systemPrompt = await buildSystemPrompt();
       const aiReply = await queryGemini(contents, systemPrompt, apiKey);
       if (aiReply) {
         return { text: aiReply, requestTakeover: false };
@@ -265,7 +279,7 @@ async function generateAIResponse(customerText, sessionHistory = [], businessId 
   }
 
   // 3. Fallback
-  return { text: generateFallbackResponse(customerText), requestTakeover: false };
+  return { text: await generateFallbackResponse(customerText), requestTakeover: false };
 }
 
 module.exports = { generateAIResponse };

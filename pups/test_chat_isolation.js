@@ -1,7 +1,7 @@
 const http = require('http');
 const ioClient = require('socket.io-client');
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
 
 async function makeRequest(path, method = 'GET', body = null, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -40,6 +40,15 @@ async function runIsolationTests() {
   console.log('🧪 RUNNING STRICT MULTI-TENANT CHAT PRIVACY ISOLATION TESTS');
   console.log('------------------------------------------------------------\n');
 
+  for (const path of ['/db.json', '/db.backup.json', '/server.js']) {
+    const response = await makeRequest(path);
+    if (response.status !== 404) {
+      console.error(`❌ FAIL: Sensitive path ${path} returned status ${response.status}.`);
+      process.exit(1);
+    }
+  }
+  console.log('✅ PASS: Local database, backup, and server source are not publicly served.\n');
+
   // STEP 1: Initialize 3 Separate Customer Sessions
   console.log('1️⃣  Initializing 3 separate customer sessions (John, Mary, Peter)...');
 
@@ -67,7 +76,7 @@ async function runIsolationTests() {
 
   // STEP 2: Send Customer Messages
   console.log('2️⃣  Sending private messages from Customer A, B, and C...');
-  
+
   await makeRequest('/api/public/chat/send', 'POST', {
     conversationId: conv_A, sessionToken: token_A, text: 'Is the female Cavapoo available?'
   }, { 'X-Session-Token': token_A, 'X-Conversation-Id': conv_A });
@@ -85,9 +94,23 @@ async function runIsolationTests() {
 
   console.log('   ✅ Messages sent successfully for all 3 customers.\n');
 
+  const restoredSession = await makeRequest('/api/public/chat/init', 'POST', {
+    conversationId: conv_A,
+    sessionToken: token_A,
+    name: 'John',
+    email: 'john@example.com'
+  });
+  const restoredMessages = restoredSession.body.messages || [];
+  if (restoredSession.status !== 200 || restoredSession.body.conversation?.id !== conv_A ||
+    !restoredMessages.some(message => message.text === 'Is the female Cavapoo available?')) {
+    console.error('❌ FAIL: Existing authorized conversation or messages did not persist after refresh.');
+    process.exit(1);
+  }
+  console.log('   ✅ PASS: Authorized conversation and message history restored after refresh.\n');
+
   // STEP 3: Security & Authorization Leak Test
   console.log('3️⃣  Testing Customer Security (Customer B attempts to access Customer A\'s chat)...');
-  
+
   // Try fetching Customer A's history using Customer B's token
   const leakTest = await makeRequest(`/api/public/chat/messages?conversationId=${conv_A}&sessionToken=${token_B}`, 'GET', null, {
     'X-Session-Token': token_B,
@@ -158,7 +181,9 @@ async function runIsolationTests() {
   // STEP 5: Admin Panel Visibility & Targeted Takeover
   console.log('5️⃣  Testing Admin Dashboard Visibility & Targeted Owner Reply...');
 
-  const adminAuth = await makeRequest('/api/auth/login', 'POST', { code: 'admin123' });
+  const adminCode = process.env.TEST_ADMIN_CODE;
+  if (!adminCode) throw new Error('Set TEST_ADMIN_CODE to a temporary test passcode before running this test.');
+  const adminAuth = await makeRequest('/api/auth/login', 'POST', { code: adminCode });
   const adminToken = adminAuth.body.token;
 
   const adminChats = await makeRequest('/api/admin/chats', 'GET', null, { 'Authorization': `Bearer ${adminToken}` });

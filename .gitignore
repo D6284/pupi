@@ -2,3 +2,6 @@ pups/node_modules/
 node_modules/
 *.log
 .pups-git-backup/
+pups/.env
+pups/db.json
+pups/db.backup.json

@@ -7,6 +7,11 @@
             "config": {
                 "includeFiles": [
                     "pups/**/*"
+                ],
+                "excludeFiles": [
+                    "pups/db.json",
+                    "pups/db.backup.json",
+                    "pups/.env"
                 ]
             }
         }

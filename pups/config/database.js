@@ -61,13 +61,36 @@ function getPool() {
     const { Pool } = require('pg');
     pool = new Pool({
         connectionString,
-        max: Number(process.env.PG_POOL_MAX || 2),
-        idleTimeoutMillis: 10000,
-        connectionTimeoutMillis: 8000,
+        max: Number(process.env.PG_POOL_MAX || 5),
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+        keepAlive: true,
         ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false }
     });
     pool.on('error', error => console.error('[database] PostgreSQL pool error:', error.message));
     return pool;
+}
+
+async function withQueryRetry(fn, maxRetries = 2) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            lastError = err;
+            const isDrop = err.message && (
+                err.message.includes('Connection terminated') ||
+                err.message.includes('connection timeout') ||
+                err.message.includes('ECONNRESET')
+            );
+            if (isDrop && attempt < maxRetries) {
+                await new Promise(r => setTimeout(r, 250));
+                continue;
+            }
+            throw err;
+        }
+    }
+    throw lastError;
 }
 
 function assertKnownKey(key) {
@@ -101,14 +124,18 @@ async function get(key) {
     const table = SINGLETON_TABLES[key];
     if (table) {
         const idColumn = key === 'business_info' ? 'id' : 'business_id';
-        const result = await client.query(`SELECT payload FROM ${table} WHERE ${idColumn} = $1`, [BUSINESS_ID]);
+        const result = await withQueryRetry(() =>
+            client.query(`SELECT payload FROM ${table} WHERE ${idColumn} = $1`, [BUSINESS_ID])
+        );
         return result.rows[0]?.payload || null;
     }
 
     const { table: collectionTable, id: idColumn } = COLLECTION_TABLES[key];
-    const result = await client.query(
-        `SELECT payload FROM ${collectionTable} WHERE business_id = $1 ORDER BY sort_order, ${idColumn}`,
-        [BUSINESS_ID]
+    const result = await withQueryRetry(() =>
+        client.query(
+            `SELECT payload FROM ${collectionTable} WHERE business_id = $1 ORDER BY sort_order, ${idColumn}`,
+            [BUSINESS_ID]
+        )
     );
     const records = result.rows.map(row => row.payload);
     snapshots.set(records, clone(records));

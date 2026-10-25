@@ -156,6 +156,36 @@
         text-decoration: underline;
         cursor: pointer;
       }
+      .plush-typing-row {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        margin: 6px 0;
+      }
+      .plush-typing-bubble {
+        background: #fef3c7 !important;
+        border: 1px solid #fde68a;
+        border-radius: 14px !important;
+        padding: 8px 12px !important;
+        display: inline-flex !important;
+        align-items: center;
+        gap: 5px;
+        width: auto !important;
+      }
+      .plush-dot {
+        width: 6px;
+        height: 6px;
+        background: #d97706;
+        border-radius: 50%;
+        display: inline-block;
+        animation: plushDotPulse 1.4s infinite ease-in-out both;
+      }
+      .plush-dot:nth-child(1) { animation-delay: -0.32s; }
+      .plush-dot:nth-child(2) { animation-delay: -0.16s; }
+      @keyframes plushDotPulse {
+        0%, 80%, 100% { transform: scale(0.4); opacity: 0.3; }
+        40% { transform: scale(1); opacity: 1; }
+      }
     `;
     document.head.appendChild(style);
 
@@ -334,6 +364,27 @@
       }
     }
 
+    function showTypingIndicator() {
+      hideTypingIndicator();
+      const row = document.createElement('div');
+      row.id = 'plush-typing-indicator';
+      row.className = 'plush-msg-row ai plush-typing-row';
+      row.innerHTML = `
+        <div class="plush-msg-sender">Plush Pups Concierge</div>
+        <div class="plush-bubble plush-typing-bubble">
+          <span class="plush-dot"></span>
+          <span class="plush-dot"></span>
+          <span class="plush-dot"></span>
+        </div>
+      `;
+      messagesBox.appendChild(row);
+      scrollToBottom();
+    }
+
+    function hideTypingIndicator() {
+      document.getElementById('plush-typing-indicator')?.remove();
+    }
+
     // ── Send message ───────────────────────────────────────────────────────
     function sendMessage(text) {
       if (!conversationId || !sessionToken) return;
@@ -346,6 +397,11 @@
         text,
         timestamp: new Date().toISOString()
       });
+
+      showTypingIndicator();
+      sendBtn.disabled = true;
+      input.disabled = true;
+
       fetch('/api/public/chat/send', {
         method: 'POST',
         headers: {
@@ -368,6 +424,10 @@
           return data;
         })
         .then(data => {
+          hideTypingIndicator();
+          sendBtn.disabled = false;
+          input.disabled = false;
+          input.focus();
           if (!data) return;
           clearRequestError();
           document.getElementById('msg-' + temporaryId)?.remove();
@@ -381,6 +441,9 @@
           }
         })
         .catch(err => {
+          hideTypingIndicator();
+          sendBtn.disabled = false;
+          input.disabled = false;
           console.error('[PlushChat] Send error:', err);
           document.getElementById('msg-' + temporaryId)?.remove();
           showRequestError(err.message || 'Your message could not be sent. Please try again.', false);
@@ -482,7 +545,13 @@
     }
 
     function buildPuppyCard(pupId) {
-      const pup = puppiesCache.find(p => p.id === pupId);
+      const cleanId = String(pupId || '').toLowerCase().trim();
+      const normalizedId = cleanId.replace(/^pup(\d+)$/, 'pup_$1');
+      const pup = puppiesCache.find(p =>
+        (p.id && p.id.toLowerCase() === cleanId) ||
+        (p.id && p.id.toLowerCase() === normalizedId) ||
+        (p.name && p.name.toLowerCase() === cleanId)
+      );
       if (!pup) return '';
       const name = escapeHtml(pup.name || '');
       const breed = escapeHtml(pup.breed || '');
